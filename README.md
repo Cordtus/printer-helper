@@ -49,33 +49,247 @@ sudo pacman -S bash iputils net-snmp openbsd-netcat
 sudo dnf install bash iputils net-snmp-utils nmap-ncat
 ```
 
-## Usage
+## Setup as a Bash function
 
-Run directly:
-
-```bash
-./printer.bash status
-./printer.bash toner
-./printer.bash supplies
-```
-
-Or source it into your current Bash session:
+To use commands like this directly:
 
 ```bash
-source ./printer.bash
 printer status
+printer toner
+printer supplies
 ```
 
-To make it available in every Bash shell, copy it somewhere stable and source it from `~/.bashrc`:
+Bash must `source` the file into your shell session. Executing the script works too, but that is not the same as installing the `printer` function into your shell.
+
+### Per-user install: recommended
+
+Run from the directory containing `printer.bash`:
 
 ```bash
-mkdir -p ~/.local/share/printer-helper
-cp printer.bash ~/.local/share/printer-helper/printer.bash
-printf '\nsource ~/.local/share/printer-helper/printer.bash\n' >> ~/.bashrc
+mkdir -p ~/.local/lib/printer-helper
+cp printer.bash ~/.local/lib/printer-helper/printer.bash
+chmod 644 ~/.local/lib/printer-helper/printer.bash
+```
+
+Add this block to `~/.bashrc`:
+
+```bash
+cat >> ~/.bashrc <<'BASHRC'
+
+# Printer helper
+if [ -r "$HOME/.local/lib/printer-helper/printer.bash" ]; then
+  . "$HOME/.local/lib/printer-helper/printer.bash"
+fi
+BASHRC
+```
+
+Reload Bash:
+
+```bash
 source ~/.bashrc
 ```
 
-## Subcommands
+Verify that Bash sees the function:
+
+```bash
+type printer
+printer help
+```
+
+Expected result from `type printer`:
+
+```text
+printer is a function
+```
+
+After that, use it normally:
+
+```bash
+printer status
+printer toner
+printer supplies
+printer pages
+printer alerts
+```
+
+### System-wide install for all users
+
+Use this only if multiple shell users on the machine should get the `printer` function.
+
+Install the file under `/usr/local/lib`:
+
+```bash
+sudo install -D -m 0644 printer.bash /usr/local/lib/printer-helper/printer.bash
+```
+
+On Debian/Ubuntu, interactive Bash shells read `/etc/bash.bashrc`, so add a guarded source block there:
+
+```bash
+sudo tee -a /etc/bash.bashrc >/dev/null <<'BASHRC'
+
+# Printer helper
+if [ -r /usr/local/lib/printer-helper/printer.bash ]; then
+  . /usr/local/lib/printer-helper/printer.bash
+fi
+BASHRC
+```
+
+Then open a new terminal or run:
+
+```bash
+source /etc/bash.bashrc
+```
+
+Verify:
+
+```bash
+type printer
+printer help
+```
+
+### Alternative: standalone executable
+
+This does not install a shell function, but it lets you run the helper as a normal command if the script is in your `PATH`.
+
+```bash
+sudo install -D -m 0755 printer.bash /usr/local/bin/printer
+```
+
+Then run:
+
+```bash
+printer status
+printer toner
+```
+
+This works because `printer.bash` calls the `printer` function internally when executed directly.
+
+
+## Setup as a Fish function
+
+Fish cannot source Bash functions directly. To use the same helper from Fish with commands like `printer status`, create a Fish wrapper function that calls the Bash script.
+
+### Per-user Fish install
+
+Run from the directory containing `printer.bash`:
+
+```fish
+mkdir -p ~/.local/lib/printer-helper ~/.config/fish/functions
+cp printer.bash ~/.local/lib/printer-helper/printer.bash
+chmod 755 ~/.local/lib/printer-helper/printer.bash
+```
+
+Create `~/.config/fish/functions/printer.fish`:
+
+```fish
+cat > ~/.config/fish/functions/printer.fish <<'FISH'
+function printer --description "Printer helper"
+    bash "$HOME/.local/lib/printer-helper/printer.bash" $argv
+end
+FISH
+```
+
+Reload Fish, or open a new terminal:
+
+```fish
+exec fish
+```
+
+Verify:
+
+```fish
+type printer
+printer help
+```
+
+Expected result from `type printer`:
+
+```text
+printer is a function with definition
+```
+
+After that, use it normally:
+
+```fish
+printer status
+printer toner
+printer supplies
+printer pages
+printer alerts
+```
+
+### Persistent Fish defaults
+
+Set exported universal variables if your printer IP or SNMP community differs from the script defaults:
+
+```fish
+set -Ux PRINTER_IP 192.168.0.119
+set -Ux PRINTER_COMMUNITY public
+```
+
+These exported variables are inherited by the Bash script called from the Fish wrapper.
+
+### System-wide Fish install
+
+For all Fish users on the machine, install the script and function under system paths:
+
+```fish
+sudo install -D -m 0755 printer.bash /usr/local/lib/printer-helper/printer.bash
+sudo mkdir -p /etc/fish/functions
+```
+
+Create `/etc/fish/functions/printer.fish`:
+
+```fish
+sudo tee /etc/fish/functions/printer.fish >/dev/null <<'FISH'
+function printer --description "Printer helper"
+    bash /usr/local/lib/printer-helper/printer.bash $argv
+end
+FISH
+```
+
+Then open a new Fish shell or run:
+
+```fish
+exec fish
+```
+
+## Configure printer IP or SNMP community
+
+### One-off command
+
+```bash
+PRINTER_IP=192.168.0.119 PRINTER_COMMUNITY=public printer status
+```
+
+### Persistent per-user defaults
+
+Add these above the source block in `~/.bashrc`:
+
+```bash
+export PRINTER_IP=192.168.0.119
+export PRINTER_COMMUNITY=public
+```
+
+Example:
+
+```bash
+export PRINTER_IP=192.168.0.119
+export PRINTER_COMMUNITY=public
+
+# Printer helper
+if [ -r "$HOME/.local/lib/printer-helper/printer.bash" ]; then
+  . "$HOME/.local/lib/printer-helper/printer.bash"
+fi
+```
+
+Reload:
+
+```bash
+source ~/.bashrc
+```
+
+## Usage
 
 ```text
 printer status       Device info, uptime, and current status
@@ -90,22 +304,6 @@ printer help         Show help text
 ```
 
 `printer` with no subcommand is the same as `printer summary`.
-
-## Configure another IP or SNMP community
-
-Set environment variables before running the command:
-
-```bash
-PRINTER_IP=192.168.0.119 PRINTER_COMMUNITY=public ./printer.bash status
-```
-
-When sourced:
-
-```bash
-export PRINTER_IP=192.168.0.119
-export PRINTER_COMMUNITY=public
-printer status
-```
 
 ## Compatibility
 
