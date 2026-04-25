@@ -1,13 +1,36 @@
-# Printer Bash Helper
+# Printer Helper
 
-Bash port of the original Fish `printer` helper function for a Brother HL-3170CDW on the local network.
+Bash-based printer helper for querying a Brother HL-3170CDW over SNMP and sending a raw PJL reset to the printer when needed.
 
-The helper queries printer status over SNMP and can send a PJL reset over the printer's raw TCP print port.
+The helper can be used from either:
+
+- **Bash** as a sourced shell function.
+- **Fish** as a Fish wrapper function that calls the Bash helper.
 
 ## Files
 
-- `printer.bash` — Bash function and standalone executable script.
-- `README.md` — Basic usage, compatibility, and dependency notes.
+- `printer.bash` — Bash helper script. Can be sourced as a Bash function or run directly.
+- `README.md` — Setup, usage, compatibility, and dependency notes.
+
+## What it provides
+
+```text
+printer status       Device info, uptime, and current status
+printer toner        Toner cartridge status: OK / Low / Very Low / Replace
+printer supplies     Drum and belt life remaining with bar graphs
+printer pages        Total page count
+printer alerts       Recent printer alert/error messages
+printer cancel       Send a PJL reset to cancel a stuck print job
+printer reset-toner  Print the manual toner counter reset procedure
+printer summary      Show status, toner, supplies, pages, and alerts
+printer help         Show help text
+```
+
+Running `printer` with no subcommand is the same as:
+
+```bash
+printer summary
+```
 
 ## Requirements
 
@@ -49,19 +72,15 @@ sudo pacman -S bash iputils net-snmp openbsd-netcat
 sudo dnf install bash iputils net-snmp-utils nmap-ncat
 ```
 
-## Setup as a Bash function
+---
 
-To use commands like this directly:
+# Setup path 1: Bash
 
-```bash
-printer status
-printer toner
-printer supplies
-```
+Use this path on Debian, Ubuntu, and most Linux systems where Bash is the default interactive shell.
 
-Bash must `source` the file into your shell session. Executing the script works too, but that is not the same as installing the `printer` function into your shell.
+## Bash per-user function install
 
-### Per-user install: recommended
+This installs the helper only for the current user.
 
 Run from the directory containing `printer.bash`:
 
@@ -71,7 +90,7 @@ cp printer.bash ~/.local/lib/printer-helper/printer.bash
 chmod 644 ~/.local/lib/printer-helper/printer.bash
 ```
 
-Add this block to `~/.bashrc`:
+Add the helper to `~/.bashrc`:
 
 ```bash
 cat >> ~/.bashrc <<'BASHRC'
@@ -89,20 +108,20 @@ Reload Bash:
 source ~/.bashrc
 ```
 
-Verify that Bash sees the function:
+Verify that Bash sees `printer` as a function:
 
 ```bash
 type printer
 printer help
 ```
 
-Expected result from `type printer`:
+Expected `type printer` result:
 
 ```text
 printer is a function
 ```
 
-After that, use it normally:
+Use it normally:
 
 ```bash
 printer status
@@ -112,17 +131,54 @@ printer pages
 printer alerts
 ```
 
-### System-wide install for all users
+## Bash persistent defaults
 
-Use this only if multiple shell users on the machine should get the `printer` function.
+Use this if your printer IP or SNMP community differs from the script defaults.
 
-Install the file under `/usr/local/lib`:
+Add these lines above the printer helper source block in `~/.bashrc`:
+
+```bash
+export PRINTER_IP=192.168.0.119
+export PRINTER_COMMUNITY=public
+```
+
+Example `~/.bashrc` block:
+
+```bash
+export PRINTER_IP=192.168.0.119
+export PRINTER_COMMUNITY=public
+
+# Printer helper
+if [ -r "$HOME/.local/lib/printer-helper/printer.bash" ]; then
+  . "$HOME/.local/lib/printer-helper/printer.bash"
+fi
+```
+
+Reload Bash:
+
+```bash
+source ~/.bashrc
+```
+
+## Bash one-off override
+
+Use environment variables before the command:
+
+```bash
+PRINTER_IP=192.168.0.119 PRINTER_COMMUNITY=public printer status
+```
+
+## Bash system-wide function install
+
+Use this only if every interactive Bash user on the machine should get the `printer` function.
+
+Install the helper:
 
 ```bash
 sudo install -D -m 0644 printer.bash /usr/local/lib/printer-helper/printer.bash
 ```
 
-On Debian/Ubuntu, interactive Bash shells read `/etc/bash.bashrc`, so add a guarded source block there:
+On Debian/Ubuntu, interactive Bash shells read `/etc/bash.bashrc`. Add a guarded source block there:
 
 ```bash
 sudo tee -a /etc/bash.bashrc >/dev/null <<'BASHRC'
@@ -134,7 +190,7 @@ fi
 BASHRC
 ```
 
-Then open a new terminal or run:
+Open a new terminal, or reload Bash:
 
 ```bash
 source /etc/bash.bashrc
@@ -147,9 +203,9 @@ type printer
 printer help
 ```
 
-### Alternative: standalone executable
+## Bash alternative: standalone executable
 
-This does not install a shell function, but it lets you run the helper as a normal command if the script is in your `PATH`.
+This does not install a shell function. It installs the helper as a normal command in your `PATH`.
 
 ```bash
 sudo install -D -m 0755 printer.bash /usr/local/bin/printer
@@ -162,14 +218,19 @@ printer status
 printer toner
 ```
 
-This works because `printer.bash` calls the `printer` function internally when executed directly.
+This works because `printer.bash` calls its internal `printer` function when executed directly.
 
+---
 
-## Setup as a Fish function
+# Setup path 2: Fish
 
-Fish cannot source Bash functions directly. To use the same helper from Fish with commands like `printer status`, create a Fish wrapper function that calls the Bash script.
+Fish cannot source Bash functions directly. Use this path if Fish is your interactive shell.
 
-### Per-user Fish install
+The Fish setup creates a Fish function named `printer` that calls the Bash helper script.
+
+## Fish per-user function install
+
+This installs the helper only for the current user.
 
 Run from the directory containing `printer.bash`:
 
@@ -189,7 +250,76 @@ end
 FISH
 ```
 
-Reload Fish, or open a new terminal:
+Reload Fish:
+
+```fish
+exec fish
+```
+
+Verify that Fish sees `printer` as a function:
+
+```fish
+type printer
+printer help
+```
+
+Expected `type printer` result:
+
+```text
+printer is a function with definition
+```
+
+Use it normally:
+
+```fish
+printer status
+printer toner
+printer supplies
+printer pages
+printer alerts
+```
+
+## Fish persistent defaults
+
+Use exported universal variables if your printer IP or SNMP community differs from the script defaults:
+
+```fish
+set -Ux PRINTER_IP 192.168.0.119
+set -Ux PRINTER_COMMUNITY public
+```
+
+These variables are inherited by the Bash helper when the Fish wrapper calls it.
+
+## Fish one-off override
+
+Use `env` before the command:
+
+```fish
+env PRINTER_IP=192.168.0.119 PRINTER_COMMUNITY=public printer status
+```
+
+## Fish system-wide function install
+
+Use this only if every Fish user on the machine should get the `printer` function.
+
+Install the Bash helper:
+
+```fish
+sudo install -D -m 0755 printer.bash /usr/local/lib/printer-helper/printer.bash
+```
+
+Create the system-wide Fish wrapper:
+
+```fish
+sudo mkdir -p /etc/fish/functions
+sudo tee /etc/fish/functions/printer.fish >/dev/null <<'FISH'
+function printer --description "Printer helper"
+    bash /usr/local/lib/printer-helper/printer.bash $argv
+end
+FISH
+```
+
+Open a new Fish shell, or reload Fish:
 
 ```fish
 exec fish
@@ -202,124 +332,23 @@ type printer
 printer help
 ```
 
-Expected result from `type printer`:
+---
 
-```text
-printer is a function with definition
-```
-
-After that, use it normally:
-
-```fish
-printer status
-printer toner
-printer supplies
-printer pages
-printer alerts
-```
-
-### Persistent Fish defaults
-
-Set exported universal variables if your printer IP or SNMP community differs from the script defaults:
-
-```fish
-set -Ux PRINTER_IP 192.168.0.119
-set -Ux PRINTER_COMMUNITY public
-```
-
-These exported variables are inherited by the Bash script called from the Fish wrapper.
-
-### System-wide Fish install
-
-For all Fish users on the machine, install the script and function under system paths:
-
-```fish
-sudo install -D -m 0755 printer.bash /usr/local/lib/printer-helper/printer.bash
-sudo mkdir -p /etc/fish/functions
-```
-
-Create `/etc/fish/functions/printer.fish`:
-
-```fish
-sudo tee /etc/fish/functions/printer.fish >/dev/null <<'FISH'
-function printer --description "Printer helper"
-    bash /usr/local/lib/printer-helper/printer.bash $argv
-end
-FISH
-```
-
-Then open a new Fish shell or run:
-
-```fish
-exec fish
-```
-
-## Configure printer IP or SNMP community
-
-### One-off command
-
-```bash
-PRINTER_IP=192.168.0.119 PRINTER_COMMUNITY=public printer status
-```
-
-### Persistent per-user defaults
-
-Add these above the source block in `~/.bashrc`:
-
-```bash
-export PRINTER_IP=192.168.0.119
-export PRINTER_COMMUNITY=public
-```
-
-Example:
-
-```bash
-export PRINTER_IP=192.168.0.119
-export PRINTER_COMMUNITY=public
-
-# Printer helper
-if [ -r "$HOME/.local/lib/printer-helper/printer.bash" ]; then
-  . "$HOME/.local/lib/printer-helper/printer.bash"
-fi
-```
-
-Reload:
-
-```bash
-source ~/.bashrc
-```
-
-## Usage
-
-```text
-printer status       Device info, uptime, and current status
-printer toner        Toner cartridge status: OK / Low / Very Low / Replace
-printer supplies     Drum and belt life remaining with bar graphs
-printer pages        Total page count
-printer alerts       Recent printer alert/error messages
-printer cancel       Send a PJL reset to cancel a stuck print job
-printer reset-toner  Print the manual toner counter reset procedure
-printer summary      Show status, toner, supplies, pages, and alerts
-printer help         Show help text
-```
-
-`printer` with no subcommand is the same as `printer summary`.
-
-## Compatibility
+# Compatibility
 
 Target environment:
 
 - Linux
 - Bash 4+
 - Brother HL-3170CDW
-- SNMP v2c using the printer's public community string
+- SNMP v2c using the printer's configured community string
 
-The standard printer MIB OIDs may work on other Brother printers, but the Brother-specific toner status bytes, drum/belt supply indexes, and reset procedure are model-specific and may need adjustment.
+The standard printer MIB OIDs may work on other Brother printers and some non-Brother network printers. The Brother-specific toner status bytes, drum/belt supply indexes, and reset procedure are model-specific and may need adjustment.
 
-`printer cancel` uses PJL over TCP port `9100`. This is intended for printers with raw socket printing enabled. If the printer does not accept raw socket printing, the command will fail or do nothing.
+`printer cancel` uses PJL over TCP port `9100`. This is intended for printers with raw socket printing enabled. If the printer does not accept raw socket printing, the command may fail or do nothing.
 
-## Notes
+# Notes
 
 - The helper only reads SNMP data except for `printer cancel`, which sends a PJL initialize/reset command to port `9100`.
-- The toner reset subcommand only prints manual instructions. It does not send any reset command to the printer.
+- `printer reset-toner` only prints manual reset instructions. It does not send a toner reset command to the printer.
 - If `printer toner` returns incorrect values, verify that the Brother status OID exists on the printer model and that `snmpget` returns a hex byte sequence.
